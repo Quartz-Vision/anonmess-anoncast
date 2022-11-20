@@ -1,6 +1,10 @@
 package squeue
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+	"unsafe"
+)
 
 type Node struct {
 	next  *Node
@@ -34,21 +38,19 @@ func (q *SQueue) Push(val any) {
 	}
 	node.next = node
 
-	q.mutex.Lock()
-	q.currentNode.next.next = node
-	q.currentNode = node
-	q.mutex.Unlock()
+	(*Node)(atomic.SwapPointer(
+		(*unsafe.Pointer)(unsafe.Pointer(&q.currentNode)),
+		unsafe.Pointer(node),
+	)).next.next = node
 }
 
 func (q *SQueue) Pop() (val any, ok bool) {
-	q.mutex.Lock()
+	anchor := q.anchorNode
 
-	node := q.anchorNode.next
-	ok = q.anchorNode != node.next
-	q.anchorNode.next = node.next
-	node.next = q.anchorNode
-
-	q.mutex.Unlock()
+	node := anchor.next
+	ok = anchor != node.next
+	anchor.next = node.next
+	node.next = anchor
 
 	return node.Value, ok
 }

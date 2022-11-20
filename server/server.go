@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 var ErrServerStart = errors.New("server failed to start")
@@ -14,66 +15,79 @@ var ErrConnectionFailed = errors.New("connection hasn't been accepted")
 
 var connections = sync.Map{}
 
-func sendMessage(message []byte, conn net.Conn, waitGroup *sync.WaitGroup) {
-	waitGroup.Add(1)
-	defer waitGroup.Done()
-
-	conn.Write(message)
+func sendMessage(message *[]byte, conn net.Conn, waitGroup *sync.WaitGroup) {
+	conn.Write(*message)
+	waitGroup.Done()
 }
 
 func castMessages(excludeKey net.Addr, queue *squeue.SQueue, waitGroup *sync.WaitGroup) {
-	waitGroup.Add(1)
-	defer waitGroup.Done()
-
+root:
 	for {
 		for queue.IsEmpty() {
+			time.Sleep(time.Millisecond)
 		}
-		if val, ok := queue.Pop(); ok {
+
+		for val, ok := queue.Pop(); ok; val, ok = queue.Pop() {
 			if val == nil {
-				break
+				break root
 			}
 
 			valueWaitGroup := sync.WaitGroup{}
 			connections.Range(func(key any, c any) bool {
 				if key != excludeKey {
-					go sendMessage(val.([]byte), c.(net.Conn), &valueWaitGroup)
+					valueWaitGroup.Add(1)
+					go sendMessage(val.(*[]byte), c.(net.Conn), &valueWaitGroup)
 				}
 				return true
 			})
 			valueWaitGroup.Wait()
 		}
 	}
+
+	waitGroup.Done()
 }
 
 func handleConnection(conn net.Conn, waitGroup *sync.WaitGroup) (err error) {
-	waitGroup.Add(1)
-	defer conn.Close()
-	defer waitGroup.Done()
-
 	connKey := conn.RemoteAddr()
 	connections.Store(connKey, conn)
-	defer connections.Delete(connKey)
-
-	var packageSize int32 = 0
-	int32Buf := make([]byte, 4)
 
 	messagesQueue := squeue.New()
-	go castMessages(connKey, messagesQueue, waitGroup)
-	defer messagesQueue.Push(nil)
+	castWaitGroup := sync.WaitGroup{}
+	castWaitGroup.Add(1)
+	go castMessages(connKey, messagesQueue, &castWaitGroup)
+
+	var retErr error = nil
 
 	for {
-		if _, err := io.ReadFull(conn, int32Buf); err != nil {
-			return err
-		}
-		packageSize = BytesToInt32(int32Buf)
-		packageBuf := make([]byte, packageSize)
+		sizeRawBuf := make([]byte, INT64_SIZE)
 
-		if _, err := io.ReadFull(conn, packageBuf); err != nil {
-			return err
+		if _, err := io.ReadFull(conn, sizeRawBuf); err != nil {
+			retErr = err
+			break
 		}
 
-		messagesQueue.Push(packageBuf)
+		packageSize, _ := BytesToInt64(sizeRawBuf)
+		sizeBufLen := int64(len(sizeRawBuf))
+		packageBuf := make([]byte, packageSize+sizeBufLen)
+
+		copy(packageBuf, sizeRawBuf)
+
+		if _, err := io.ReadFull(conn, packageBuf[sizeBufLen:]); err != nil {
+			retErr = err
+			break
+		}
+
+		messagesQueue.Push(&packageBuf)
 	}
+
+	// Defers are too slow for this part
+	messagesQueue.Push(nil)
+	castWaitGroup.Wait()
+	conn.Close()
+	connections.Delete(connKey)
+	waitGroup.Done()
+
+	return retErr
 }
 
 func Init() error {
@@ -96,6 +110,7 @@ func Init() error {
 			break
 		}
 
+		waitGroup.Add(1)
 		go handleConnection(conn, &waitGroup)
 	}
 
