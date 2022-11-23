@@ -2,6 +2,7 @@ package server
 
 import (
 	"anoncast/lists/squeue"
+	"anoncast/logging"
 	"anoncast/settings"
 	"errors"
 	"io"
@@ -10,13 +11,20 @@ import (
 	"time"
 )
 
-var ErrServerStart = errors.New("server failed to start")
-var ErrConnectionFailed = errors.New("connection hasn't been accepted")
+const (
+	MAX_PACKAGE_SIZE_B = 1 << 20
+)
 
-var connections = sync.Map{}
+var (
+	ErrServerStart      = errors.New("server failed to start")
+	ErrConnectionFailed = errors.New("connection hasn't been accepted")
+	connections         = sync.Map{}
+)
 
 func sendMessage(message *[]byte, conn net.Conn, waitGroup *sync.WaitGroup) {
-	conn.Write(*message)
+	if _, err := conn.Write(*message); err != nil && err != io.EOF {
+		logging.Warning.Println("Package writing failed, skipping connection.", err.Error())
+	}
 	waitGroup.Done()
 }
 
@@ -62,18 +70,28 @@ func handleConnection(conn net.Conn, waitGroup *sync.WaitGroup) (err error) {
 		sizeRawBuf := make([]byte, INT64_SIZE)
 
 		if _, err := io.ReadFull(conn, sizeRawBuf); err != nil {
-			retErr = err
+			if err != io.EOF {
+				logging.Warning.Println("Package reading failed, dropping connection.", err.Error())
+				retErr = err
+			}
 			break
 		}
 
 		packageSize, _ := BytesToInt64(sizeRawBuf)
+		if packageSize <= 0 || packageSize >= MAX_PACKAGE_SIZE_B {
+			logging.Warning.Printf("Received wrong package size (%v), skipping it", packageSize)
+			continue
+		}
 		sizeBufLen := int64(len(sizeRawBuf))
 		packageBuf := make([]byte, packageSize+sizeBufLen)
 
 		copy(packageBuf, sizeRawBuf)
 
 		if _, err := io.ReadFull(conn, packageBuf[sizeBufLen:]); err != nil {
-			retErr = err
+			if err == io.ErrUnexpectedEOF {
+				logging.Warning.Println("Package reading failed, dropping connection.", err.Error())
+				retErr = err
+			}
 			break
 		}
 
@@ -91,10 +109,13 @@ func handleConnection(conn net.Conn, waitGroup *sync.WaitGroup) (err error) {
 }
 
 func Init() error {
+	logging.Init()
+
 	//establish connection
 	listener, err := net.Listen("tcp", settings.Config.ServerAddr)
 
 	if err != nil {
+		logging.Error.Println(err.Error())
 		return ErrServerStart
 	}
 
@@ -106,8 +127,8 @@ func Init() error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			lastErr = ErrConnectionFailed
-			break
+			logging.Error.Println(err.Error())
+			continue
 		}
 
 		waitGroup.Add(1)
