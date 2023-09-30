@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"anoncast/logging"
 	"errors"
 	"strconv"
 
@@ -17,16 +18,12 @@ var Config = struct {
 	ServerAddr string
 }{}
 
-func Init() error {
-	if err := godotenv.Load(); err != nil {
-		return ErrEnvLoading
-	}
+func init() {
+	godotenv.Load()
 
 	if err := env.Parse(&Config); err != nil {
-		return ErrEnvParsing
+		logging.Error.Fatalln(err.Error())
 	}
 
 	Config.ServerAddr = Config.ServerHost + ":" + strconv.FormatInt(int64(Config.ServerPort), 10)
-
-	return nil
 }

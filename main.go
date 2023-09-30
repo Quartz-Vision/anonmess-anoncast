@@ -1,19 +1,12 @@
 package main
 
 import (
+	"anoncast/logging"
 	"anoncast/server"
-	"anoncast/settings"
-	"log"
 )
 
 func main() {
-	if err := settings.Init(); err != nil {
-		log.Fatal(err.Error())
-		return
-	}
-
 	if err := server.Start(); err != nil {
-		log.Fatal(err.Error())
-		return
+		logging.Error.Println(err.Error())
 	}
 }

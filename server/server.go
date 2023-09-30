@@ -16,7 +16,7 @@ const (
 	MAX_PACKAGE_SIZE_B = 1 << 20 // 1MB
 
 	// The last byte in a package to check for validity.
-	// Doesn't ensure 100% correctness, but just eliminates some stupid cases.
+	// Doesn't ensure 100% correctness, but eliminates some stupid cases.
 	CHECK_SYMBOL_B byte = 0b10110010
 )
 
@@ -115,8 +115,6 @@ func onInterruption(ctx context.Context, callback func(os.Signal)) {
 }
 
 func Start() error {
-	logging.Init()
-
 	waitGroup := sync.WaitGroup{}
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
