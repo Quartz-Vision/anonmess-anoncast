@@ -1,8 +1,9 @@
 package settings
 
 import (
-	"anoncast/logging"
 	"strconv"
+
+	"github.com/Quartz-Vision/golog"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
@@ -18,7 +19,7 @@ func init() {
 	godotenv.Load()
 
 	if err := env.Parse(&Config); err != nil {
-		logging.Error.Fatalln(err.Error())
+		golog.Error.Fatalln(err.Error())
 	}
 
 	Config.ServerAddr = Config.ServerHost + ":" + strconv.FormatInt(int64(Config.ServerPort), 10)

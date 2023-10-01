@@ -1,7 +1,6 @@
 package server
 
 import (
-	"anoncast/logging"
 	"anoncast/settings"
 	"context"
 	"errors"
@@ -10,6 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+
+	"github.com/Quartz-Vision/golog"
 )
 
 const (
@@ -28,7 +29,7 @@ var (
 
 func sendMessage(message *[]byte, conn net.Conn, waitGroup *sync.WaitGroup) {
 	if _, err := conn.Write(*message); err != nil && err != io.EOF {
-		logging.Warning.Println("Package writing failed, skipping connection", err.Error())
+		golog.Warning.Println("Package writing failed, skipping connection", err.Error())
 	}
 	waitGroup.Done()
 }
@@ -65,7 +66,7 @@ func handleConnection(conn net.Conn, waitGroup *sync.WaitGroup) error {
 
 		if _, err := io.ReadFull(conn, sizeRawBuf); err != nil {
 			if err != io.EOF {
-				logging.Warning.Println("Package reading failed, dropping connection", err.Error())
+				golog.Warning.Println("Package reading failed, dropping connection", err.Error())
 				retErr = err
 			}
 			break
@@ -73,7 +74,7 @@ func handleConnection(conn net.Conn, waitGroup *sync.WaitGroup) error {
 
 		packageSize, sizeBufLen := BytesToInt64(sizeRawBuf)
 		if packageSize <= 0 || packageSize >= MAX_PACKAGE_SIZE_B {
-			logging.Warning.Printf("Received wrong package size (%v), dropping connection", packageSize)
+			golog.Warning.Printf("Received wrong package size (%v), dropping connection", packageSize)
 			break
 		}
 		packageBuf := make([]byte, packageSize+int64(sizeBufLen))
@@ -82,7 +83,7 @@ func handleConnection(conn net.Conn, waitGroup *sync.WaitGroup) error {
 
 		if _, err := io.ReadFull(conn, packageBuf[sizeBufLen:]); err != nil || packageBuf[packageSize-1] != CHECK_SYMBOL_B {
 			if err == io.ErrUnexpectedEOF {
-				logging.Warning.Println("Package reading failed, dropping connection", err.Error())
+				golog.Warning.Println("Package reading failed, dropping connection", err.Error())
 				retErr = err
 			}
 			break
@@ -123,13 +124,13 @@ func Start() error {
 	defer listener.Close()
 
 	go onInterruption(ctx, func(s os.Signal) {
-		logging.Info.Println("Process interrupted")
+		golog.Info.Println("Process interrupted")
 		stop()
 		listener.Close()
 	})
 
 	if err != nil {
-		logging.Error.Println(err.Error())
+		golog.Error.Println(err.Error())
 		return ErrServerStart
 	}
 
@@ -141,7 +142,7 @@ serverLoop:
 			case <-ctx.Done():
 				break serverLoop
 			default:
-				logging.Error.Println(err.Error())
+				golog.Error.Println(err.Error())
 				continue serverLoop
 			}
 		}

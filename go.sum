@@ -1,3 +1,5 @@
+github.com/Quartz-Vision/golog v1.0.1 h1:PJIX0bPwjPRN5z5s+v0nazbrNvpwhHjNmMpwvCeyjKw=
+github.com/Quartz-Vision/golog v1.0.1/go.mod h1:XQYujL59v+6tpcyhNaj0qxvUV3IXzkYHR0JrVpvUkPc=
 github.com/caarlos0/env/v6 v6.10.1 h1:t1mPSxNpei6M5yAeu1qtRdPAK29Nbcf/n3G7x+b3/II=
 github.com/caarlos0/env/v6 v6.10.1/go.mod h1:hvp/ryKXKipEkcuYjs9mI4bBCg+UI0Yhgm5Zu0ddvwc=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
