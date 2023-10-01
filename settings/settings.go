@@ -2,15 +2,11 @@ package settings
 
 import (
 	"anoncast/logging"
-	"errors"
 	"strconv"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/joho/godotenv"
 )
-
-var ErrEnvLoading = errors.New("error while loading .env file")
-var ErrEnvParsing = errors.New("error while parsing env")
 
 var Config = struct {
 	ServerPort int    `env:"SERVER_PORT" envDefault:"8000"`
